@@ -12,12 +12,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,19 +28,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.zIndex
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.TitleCard
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
@@ -59,7 +62,14 @@ import java.util.Date
 import java.util.Locale
 import com.google.android.horologist.compose.layout.ScalingLazyColumn
 import com.google.android.horologist.compose.layout.rememberColumnState
+import com.google.android.horologist.compose.rotaryinput.DefaultRotaryHapticHandler
+import com.google.android.horologist.compose.rotaryinput.RotaryDefaults
+import com.google.android.horologist.compose.rotaryinput.RotaryHapticHandler
+import com.google.android.horologist.compose.rotaryinput.RotaryHapticsType
+import com.google.android.horologist.compose.rotaryinput.rememberRotaryHapticHandler
 import com.google.android.horologist.compose.rotaryinput.rotaryWithScroll
+import com.micahlindley.tca_wear.R
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,12 +138,16 @@ fun WearApp() {
 
     TcawearTheme {
 
-        Scaffold() {
+        Scaffold(
+            positionIndicator = {
+                PositionIndicator(listState.state);
+            }
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colors.background),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 Vignette(
                     vignettePosition = VignettePosition.TopAndBottom,
@@ -145,26 +159,34 @@ fun WearApp() {
                         .zIndex(2F)
                         .focusRequester(focusRequester)
                         .focusable()
-                        .rotaryWithScroll(focusRequester, listState.state),
+                        .rotaryWithScroll(focusRequester, listState.state, rotaryHaptics = rememberRotaryHapticHandler(listState.state)),
                     columnState = listState,
                 ) {
                     item {
-                        if (response.value.date.value != "") {
-                            val meal = response.value.menu[0];
-                            var mealText = "";
-                            if (meal.start.value.after(Date())) {
-                                mealText = "Next meal is"
-                            } else {
-                                mealText = "Meal ends"
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                painter = painterResource(R.drawable.logo),
+                                contentDescription = "The Caf App",
+                                tint = colorResource(R.color.accent),
+                                modifier = Modifier.padding(bottom = 5.dp)
+                            )
+                            if (response.value.date.value != "") {
+                                val meal = response.value.menu[0];
+                                var mealText = "";
+                                if (meal.start.value.after(Date())) {
+                                    mealText = "Next meal is"
+                                } else {
+                                    mealText = "Meal ends"
+                                }
+                                Text(
+                                    mealText + "\n" +
+                                            prettyTime.format(response.value.menu[0].start.value),
+                                    modifier = Modifier.padding(bottom = 5.dp),
+                                    fontSize = 2.4.em,
+                                    lineHeight = 1.em,
+                                    textAlign = TextAlign.Center
+                                );
                             }
-                            Text(
-                                mealText + "\n" +
-                                        prettyTime.format(response.value.menu[0].start.value),
-                                modifier = Modifier.padding(bottom = 5.dp),
-                                fontSize = 2.4.em,
-                                lineHeight = 1.em,
-                                textAlign = TextAlign.Center
-                            );
                         }
                     }
                     items(response.value.mealCount.intValue) { index ->
@@ -187,21 +209,20 @@ fun WearApp() {
                         );
                     }
                     item {
-                        Chip(
-                            content = {
-                                Text(
-                                    "Refresh",
-                                    style = MaterialTheme.typography.button,
-                                    maxLines = 1
-                                )
-                            },
+                        Button(
                             onClick = {
                                 fetchMenu(context, response);
+                                coroutineScope.launch {
+                                    listState.state.animateScrollToItem(0);
+                                }
                             },
-                            border = ChipDefaults.chipBorder(),
-                            colors = ChipDefaults.chipColors(),
-                            modifier = Modifier.height(45.dp).padding(top = 10.dp)
-                        );
+                            modifier = Modifier.padding(top = 10.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.baseline_refresh_24),
+                                contentDescription = "Refresh"
+                            )
+                        }
                     }
                 }
                 LaunchedEffect(Unit) {
